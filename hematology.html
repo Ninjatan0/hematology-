@@ -1310,4 +1310,76 @@
                         <div class="text-sm font-semibold">
                             ${record.rbc !== null ? record.rbc.toFixed(2) + ' ×10⁶' : ''}
                             ${record.rbc !== null && record.wbc !== null ? ' | ' : ''}
-                            ${record.wbc !== null ? record.wbc.toFixed(2) + ' ×10³' 
+                            ${record.wbc !== null ? record.wbc.toFixed(2) + ' ×10³' : ''}
+                        </div>
+                        <div class="text-xs text-slate-400">${record.type}</div>
+                    </div>
+                `;
+                recentList.appendChild(div);
+            });
+        }
+        
+        // ============================================================
+        // EXPORT TO PDF
+        // ============================================================
+        function exportToPDF() {
+            const content = document.getElementById('report-preview').innerHTML;
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Hematology Report</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 40px; color: #1e293b; }
+                        h1 { text-align: center; color: #1e40af; }
+                        .bg-red-50 { background: #fef2f2; padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+                        .bg-blue-50 { background: #eff6ff; padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+                        .bg-slate-50 { background: #f8fafc; padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+                        .border { border: 1px solid #e2e8f0; }
+                        .grid { display: flex; gap: 12px; }
+                        .grid-cols-2 { flex: 1; }
+                        button { display: none; }
+                        @media print { button { display: none; } }
+                    </style>
+                </head>
+                <body>${content}</body>
+                </html>
+            `);
+            win.document.close();
+            win.print();
+        }
+        
+        // ============================================================
+        // CLEAR ALL DATA
+        // ============================================================
+        function clearAllData() {
+            if (!confirm('Are you sure you want to delete all saved records? This cannot be undone.')) return;
+            allRecords = [];
+            saveToLocalStorage();
+            refreshDashboard();
+            loadRecordsTable();
+            showToast('All data cleared');
+        }
+        
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDate();
+            loadFromLocalStorage();
+            refreshDashboard();
+            
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            const rbcDateEl = document.getElementById('rbc-date');
+            const wbcDateEl = document.getElementById('wbc-date');
+            if (rbcDateEl) rbcDateEl.value = today;
+            if (wbcDateEl) wbcDateEl.value = today;
+            
+            // Show dashboard by default
+            navigateTo('dashboard');
+        });
+    </script>
+</body>
+</html>

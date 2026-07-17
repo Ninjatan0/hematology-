@@ -984,4 +984,330 @@
         document.addEventListener('DOMContentLoaded', function() {
             const rbcSquares = document.getElementById('manual-rbc-squares');
             const rbcDilution = document.getElementById('manual-rbc-dilution');
-            if (rbcSquare
+             if (rbcSquares) rbcSquares.addEventListener('change', updateManualRBCDisplay);
+            if (rbcDilution) rbcDilution.addEventListener('change', updateManualRBCDisplay);
+        });
+        
+        // ============================================================
+        // COMBINED CALCULATION
+        // ============================================================
+        function calculateCombined() {
+            const rbcVal = parseFloat(document.getElementById('combined-rbc-input').value);
+            const wbcVal = parseFloat(document.getElementById('combined-wbc-input').value);
+            
+            if (isNaN(rbcVal) || isNaN(wbcVal)) {
+                showToast('Please enter both RBC and WBC values');
+                return;
+            }
+            
+            document.getElementById('combined-rbc-display').textContent = rbcVal.toFixed(2);
+            document.getElementById('combined-wbc-display').textContent = wbcVal.toFixed(1);
+            document.getElementById('combined-result').classList.remove('hidden');
+            
+            let parts = [];
+            if (rbcVal < 4.0) parts.push('<span class="text-orange-600">RBC Low</span>');
+            else if (rbcVal > 6.0) parts.push('<span class="text-red-600">RBC High</span>');
+            else parts.push('<span class="text-emerald-600">RBC Normal</span>');
+            
+            if (wbcVal < 4.0) parts.push('<span class="text-orange-600">WBC Low</span>');
+            else if (wbcVal > 11.0) parts.push('<span class="text-red-600">WBC High</span>');
+            else parts.push('<span class="text-emerald-600">WBC Normal</span>');
+            
+            document.getElementById('combined-interpret').innerHTML = parts.join(' &nbsp;|&nbsp; ');
+            
+            // Update chart
+            if (combinedChart) {
+                combinedChart.data.datasets[0].data = [rbcVal, wbcVal];
+                combinedChart.update();
+            } else {
+                initCombinedChart(rbcVal, wbcVal);
+            }
+            
+            showToast('Combined analysis completed');
+        }
+        
+        function initCombinedChart(rbcVal, wbcVal) {
+            const ctx = document.getElementById('combined-chart');
+            if (!ctx) return;
+            combinedChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['RBC (×10⁶/µL)', 'WBC (×10³/µL)'],
+                    datasets: [{
+                        data: [rbcVal || 0, wbcVal || 0],
+                        backgroundColor: ['#ef4444', '#3b82f6'],
+                        borderRadius: 12,
+                        barThickness: 60
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // ============================================================
+        // SAVE FUNCTIONS
+        // ============================================================
+        function saveCurrentRecord() {
+            if (!currentRecord) {
+                showToast('Please calculate a count first');
+                return;
+            }
+            
+            allRecords.unshift(currentRecord);
+            saveToLocalStorage();
+            showToast('Record saved successfully');
+            currentRecord = null;
+        }
+        
+        function saveCombined() {
+            const rbcVal = parseFloat(document.getElementById('combined-rbc-input').value) || 0;
+            const wbcVal = parseFloat(document.getElementById('combined-wbc-input').value) || 0;
+            
+            if (rbcVal === 0 && wbcVal === 0) {
+                showToast('Please calculate values first');
+                return;
+            }
+            
+            const patient = 'Patient-' + Date.now();
+            
+            const record = {
+                id: 'REC-' + Date.now().toString(36),
+                date: new Date().toISOString().split('T')[0],
+                patient: patient,
+                type: 'Combined',
+                rbc: rbcVal,
+                wbc: wbcVal
+            };
+            
+            allRecords.unshift(record);
+            saveToLocalStorage();
+            showToast('Combined record saved');
+            
+            if (combinedChart) {
+                combinedChart.data.datasets[0].data = [rbcVal, wbcVal];
+                combinedChart.update();
+            }
+            refreshDashboard();
+        }
+        
+        function saveToLocalStorage() {
+            localStorage.setItem('hematRecords', JSON.stringify(allRecords));
+        }
+        
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('hematRecords');
+            if (saved) allRecords = JSON.parse(saved);
+        }
+        
+        // ============================================================
+        // RECORDS TABLE
+        // ============================================================
+        function loadRecordsTable(filter = '') {
+            const tbody = document.getElementById('records-body');
+            tbody.innerHTML = '';
+            
+            const filtered = allRecords.filter(r => 
+                r.patient.toLowerCase().includes(filter.toLowerCase()) ||
+                r.type.toLowerCase().includes(filter.toLowerCase())
+            );
+            
+            filtered.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-slate-50 transition-colors';
+                tr.innerHTML = `
+                    <td class="px-8 py-6">${record.date}</td>
+                    <td class="px-8 py-6 font-medium">${record.patient}</td>
+                    <td class="px-8 py-6">
+                        <span class="inline-block px-4 py-1 text-xs font-medium rounded-3xl ${record.type === 'RBC' ? 'bg-red-100 text-red-700' : record.type === 'WBC' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">
+                            ${record.type}
+                        </span>
+                    </td>
+                    <td class="px-8 py-6 text-right font-mono">${record.rbc ? record.rbc.toFixed(2) : '—'}</td>
+                    <td class="px-8 py-6 text-right font-mono">${record.wbc ? record.wbc.toFixed(2) : '—'}</td>
+                    <td class="px-8 py-6 text-right">
+                        <button onclick="viewRecord('${record.id}')" class="text-blue-600 hover:text-blue-800 mr-4">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button onclick="deleteRecord('${record.id}')" class="text-red-500 hover:text-red-700">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-8 py-12 text-center text-slate-400">No records found</td></tr>`;
+            }
+        }
+        
+        function filterRecords() {
+            const term = document.getElementById('search-input').value;
+            loadRecordsTable(term);
+        }
+        
+        // ============================================================
+        // VIEW / DELETE RECORDS
+        // ============================================================
+        function viewRecord(id) {
+            const record = allRecords.find(r => r.id === id);
+            if (!record) return;
+            
+            currentRecord = record;
+            navigateTo('reports');
+            generateReport(record);
+        }
+        
+        function deleteRecord(id) {
+            if (!confirm('Delete this record permanently?')) return;
+            allRecords = allRecords.filter(r => r.id !== id);
+            saveToLocalStorage();
+            loadRecordsTable();
+            refreshDashboard();
+            showToast('Record deleted');
+        }
+        
+        // ============================================================
+        // REPORT GENERATION
+        // ============================================================
+        function generateReport(record) {
+            const reportDate = document.getElementById('report-date');
+            const reportContent = document.getElementById('report-content');
+            
+            const today = new Date();
+            reportDate.textContent = 'Generated: ' + today.toLocaleDateString('en-US', { 
+                weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+            });
+            
+            let html = '';
+            
+            // Patient info section
+            html += `
+                <div class="grid grid-cols-2 gap-6 mb-8">
+                    <div class="bg-slate-50 rounded-2xl p-5">
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Patient</div>
+                        <div class="text-lg font-semibold">${record.patient}</div>
+                    </div>
+                    <div class="bg-slate-50 rounded-2xl p-5">
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Date</div>
+                        <div class="text-lg font-semibold">${record.date}</div>
+                    </div>
+                </div>
+            `;
+            
+            // Results section
+            if (record.rbc !== null && record.rbc !== undefined) {
+                const rbcStatus = record.rbc < 4.0 ? 'Low' : record.rbc > 6.0 ? 'High' : 'Normal';
+                const rbcColor = record.rbc < 4.0 ? 'text-orange-600' : record.rbc > 6.0 ? 'text-red-600' : 'text-emerald-600';
+                html += `
+                    <div class="bg-red-50 rounded-2xl p-6 border border-red-100">
+                        <div class="text-xs text-red-500 uppercase tracking-wider mb-2">Red Blood Cell Count</div>
+                        <div class="flex items-baseline gap-3">
+                            <span class="text-4xl font-bold text-red-700">${record.rbc.toFixed(2)}</span>
+                            <span class="text-sm text-slate-500">×10⁶ cells/µL</span>
+                        </div>
+                        <div class="${rbcColor} text-sm font-medium mt-2">Status: ${rbcStatus}</div>
+                        <div class="text-xs text-slate-500 mt-2">Reference Range: 4.0–6.0 ×10⁶/µL</div>
+                    </div>
+                `;
+            }
+            
+            if (record.wbc !== null && record.wbc !== undefined) {
+                const wbcStatus = record.wbc < 4.0 ? 'Leukopenia' : record.wbc > 11.0 ? 'Leukocytosis' : 'Normal';
+                const wbcColor = record.wbc < 4.0 ? 'text-orange-600' : record.wbc > 11.0 ? 'text-red-600' : 'text-emerald-600';
+                html += `
+                    <div class="bg-blue-50 rounded-2xl p-6 border border-blue-100 mt-6">
+                        <div class="text-xs text-blue-500 uppercase tracking-wider mb-2">White Blood Cell Count</div>
+                        <div class="flex items-baseline gap-3">
+                            <span class="text-4xl font-bold text-blue-700">${record.wbc.toFixed(2)}</span>
+                            <span class="text-sm text-slate-500">×10³ cells/µL</span>
+                        </div>
+                        <div class="${wbcColor} text-sm font-medium mt-2">Status: ${wbcStatus}</div>
+                        <div class="text-xs text-slate-500 mt-2">Reference Range: 4.0–11.0 ×10³/µL</div>
+                    </div>
+                `;
+            }
+            
+            // Overall interpretation
+            html += '<div class="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-200">';
+            html += '<div class="text-sm font-semibold text-slate-700 mb-3">Interpretation Summary</div>';
+            
+            let notes = [];
+            if (record.rbc !== null && record.rbc < 4.0) notes.push('Low RBC count may indicate anemia. Further clinical correlation recommended.');
+            if (record.rbc !== null && record.rbc > 6.0) notes.push('High RBC count may indicate polycythemia. Clinical follow-up advised.');
+            if (record.wbc !== null && record.wbc < 4.0) notes.push('Low WBC count (leukopenia) may indicate immunosuppression or bone marrow issues.');
+            if (record.wbc !== null && record.wbc > 11.0) notes.push('High WBC count (leukocytosis) may indicate infection or inflammation.');
+            if (notes.length === 0) notes.push('All values within normal reference range.');
+            
+            notes.forEach(n => {
+                html += `<div class="text-sm text-slate-600 mb-2">• ${n}</div>`;
+            });
+            
+            html += '</div>';
+            
+            reportContent.innerHTML = html;
+        }
+        
+        // ============================================================
+        // DASHBOARD REFRESH
+        // ============================================================
+        function refreshDashboard() {
+            // RBC average
+            const rbcRecords = allRecords.filter(r => r.rbc !== null && r.rbc !== undefined);
+            const wbcRecords = allRecords.filter(r => r.wbc !== null && r.wbc !== undefined);
+            
+            if (rbcRecords.length > 0) {
+                const avg = rbcRecords.reduce((sum, r) => sum + r.rbc, 0) / rbcRecords.length;
+                document.getElementById('dash-rbc').textContent = avg.toFixed(2);
+            } else {
+                document.getElementById('dash-rbc').textContent = '—';
+            }
+            
+            if (wbcRecords.length > 0) {
+                const avg = wbcRecords.reduce((sum, r) => sum + r.wbc, 0) / wbcRecords.length;
+                document.getElementById('dash-wbc').textContent = avg.toFixed(2);
+            } else {
+                document.getElementById('dash-wbc').textContent = '—';
+            }
+            
+            document.getElementById('dash-total').textContent = allRecords.length;
+            
+            // Recent experiments
+            const recentList = document.getElementById('recent-list');
+            recentList.innerHTML = '';
+            
+            if (allRecords.length === 0) {
+                recentList.innerHTML = '<div class="text-center text-slate-400 py-8">No experiments yet. Start by calculating RBC or WBC counts.</div>';
+                return;
+            }
+            
+            const recent = allRecords.slice(0, 5);
+            recent.forEach(record => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-white rounded-2xl p-5 border border-slate-100 hover:shadow-md transition-all';
+                div.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center ${record.type === 'RBC' ? 'bg-red-100 text-red-600' : record.type === 'WBC' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}">
+                            <i class="fa-solid ${record.type === 'RBC' ? 'fa-droplet' : record.type === 'WBC' ? 'fa-droplet' : 'fa-vial'}"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-sm">${record.patient}</div>
+                            <div class="text-xs text-slate-500">${record.date}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm font-semibold">
+                            ${record.rbc !== null ? record.rbc.toFixed(2) + ' ×10⁶' : ''}
+                            ${record.rbc !== null && record.wbc !== null ? ' | ' : ''}
+                            ${record.wbc !== null ? record.wbc.toFixed(2) + ' ×10³' 

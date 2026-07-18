@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Hematology Lab Assistant </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --primary: #1e40af;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        
+        .nav-link {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .nav-link:hover {
+            transform: translateX(8px);
+        }
+        
+        .nav-link.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+        }
+        
+        .card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        
+        .count-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        
+        table {
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+        }
+        
+        .modal {
+            animation: modalPop 0.3s ease forwards;
+        }
+        
+        @keyframes modalPop {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .counter-btn {
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        
+        .counter-btn:active {
+            transform: scale(0.92);
+        }
+
+        .wbc-diff-btn {
+            transition: all 0.15s ease;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        .wbc-diff-btn:active {
+            transform: scale(0.95);
+        }
+
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-72 bg-white border-r border-slate-200 flex flex-col">
+            <div class="p-6 border-b border-slate-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-700 rounded-2xl flex items-center justify-center text-white font-bold text-xl">H</div>
+                    <div>
+                        <h1 class="text-2xl font-semibold tracking-tight">HEMATANO</h1>
+                        <p class="text-xs text-slate-500">Advanced Hematology Lab</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto py-6 px-4">
+                <nav class="space-y-1">
+                    <a href="#" onclick="navigateTo('dashboard')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium active" id="nav-dashboard">
+                        <i class="fa-solid fa-house w-5"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('rbc')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-rbc">
+                        <i class="fa-solid fa-droplet w-5 text-red-600"></i>
+                        <span>RBC Count</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('wbc')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-wbc">
+                        <i class="fa-solid fa-droplet w-5 text-blue-600"></i>
+                        <span>WBC Count</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('manual')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-manual">
+                        <i class="fa-solid fa-hand-pointer w-5 text-green-600"></i>
+                        <span>Manual Counter</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('combined')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-combined">
+                        <i class="fa-solid fa-vial w-5 text-purple-600"></i>
+                        <span>Combined Analysis</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('records')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-records">
+                        <i class="fa-solid fa-database w-5"></i>
+                        <span>Saved Records</span>
+                    </a>
+                    <a href="#" onclick="navigateTo('reports')" class="nav-link flex items-center gap-3 px-4 py-3 text-slate-700 hover:bg-slate-100 rounded-2xl font-medium" id="nav-reports">
+                        <i class="fa-solid fa-file-medical w-5"></i>
+                        <span>Generate Report</span>
+                    </a>
+                </nav>
+                
+                <div class="mt-10 px-4">
+                    <div class="text-xs uppercase font-semibold tracking-widest text-slate-400 mb-3">Reference Ranges</div>
+                    <div class="bg-slate-50 rounded-3xl p-5 text-sm space-y-4">
+                        <div>
+                            <div class="font-medium text-red-700">RBC (×10⁶/µL)</div>
+                            <div class="text-slate-600">Male: 4.5–5.9<br>Female: 4.0–5.2</div>
+                        </div>
+                        <div>
+                            <div class="font-medium text-blue-700">WBC (×10³/µL)</div>
+                            <div class="text-slate-600">4.5–11.0</div>
+                        </div>
+                        <div>
+                            <div class="font-medium text-green-700">WBC Differential</div>
+                            <div class="text-slate-600">
+                                Neutrophil: 40–70%<br>
+                                Lymphocyte: 20–40%<br>
+                                Monocyte: 2–8%<br>
+                                Eosinophil: 1–4%<br>
+                                Basophil: 0.5–1%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 border-t border-slate-200 mt-auto">
+                <div onclick="clearAllData()" class="flex items-center gap-2 text-xs text-slate-400 hover:text-red-600 cursor-pointer transition-colors">
+                    <i class="fa-solid fa-trash"></i>
+                    <span>Clear All Local Data</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <!-- Top Bar -->
+            <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between sticky top-0 z-50">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-2xl font-semibold text-slate-800" id="page-title">Dashboard</h2>
+                </div>
+                
+                <div class="flex items-center gap-6">
+                    <div class="text-sm text-slate-500" id="current-date"></div>
+                    <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center cursor-pointer hover:bg-slate-300 transition-colors">
+                        <i class="fa-solid fa-user text-slate-600"></i>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Dashboard -->
+            <div id="content-dashboard" class="p-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-3xl p-8 card border border-slate-100">
+                        <div class="flex justify-between">
+                            <div>
+                                <div class="text-red-600 text-sm font-medium flex items-center gap-2">
+                                    <i class="fa-solid fa-droplet"></i>
+                                    RBC
+                                </div>
+                                <div id="dash-rbc" class="text-5xl font-semibold mt-3">—</div>
+                                <div class="text-xs text-slate-500 mt-1">Last recorded average (×10⁶/µL)</div>
+                            </div>
+                            <div class="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center text-3xl">🩸</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-3xl p-8 card border border-slate-100">
+                        <div class="flex justify-between">
+                            <div>
+                                <div class="text-blue-600 text-sm font-medium flex items-center gap-2">
+                                    <i class="fa-solid fa-droplet"></i>
+                                    WBC
+                                </div>
+                                <div id="dash-wbc" class="text-5xl font-semibold mt-3">—</div>
+                                <div class="text-xs text-slate-500 mt-1">Last recorded average (×10³/µL)</div>
+                            </div>
+                            <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl">🧪</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-3xl p-8 card border border-slate-100">
+                        <div class="flex justify-between">
+                            <div>
+                                <div class="text-purple-600 text-sm font-medium">Total Records</div>
+                                <div id="dash-total" class="text-5xl font-semibold mt-3">0</div>
+                                <div class="text-xs text-slate-500 mt-1">Experiments logged</div>
+                            </div>
+                            <div class="w-14 h-14 bg-purple-100 rounded-2xl flex items-center justify-center text-3xl">📊</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-10">
+                    <h3 class="text-lg font-semibold mb-5 flex items-center gap-2">
+                        <i class="fa-solid fa-clock"></i>
+                        Recent Experiments
+                    </h3>
+                    <div id="recent-list" class="space-y-3"></div>
+                </div>
+            </div>
+            
+            <!-- RBC Count -->
+            <div id="content-rbc" class="p-8 hidden">
+                <div class="max-w-3xl mx-auto">
+                    <div class="bg-white rounded-3xl shadow-sm p-8">
+                        <h3 class="text-xl font-semibold mb-6">Red Blood Cell Count</h3>
+                        
+                        <div class="grid grid-cols-2 gap-8">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600 mb-2">Patient ID / Name</label>
+                                <input id="rbc-patient" type="text" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400" placeholder="e.g., PT-20260714-001">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600 mb-2">Experiment Date</label>
+                                <input id="rbc-date" type="date" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400">
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8">
+                            <label class="block text-sm font-medium text-slate-600 mb-2">Hemocytometer Counts (5 Small Squares of Central Area)</label>
+                            <p class="text-xs text-slate-400 mb-4">Count RBCs in 5 small squares (each 0.04 mm²) of the central large square on the Neubauer chamber.</p>
+                            <div class="count-grid">
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Square 1</label>
+                                    <input id="rbc-s1" type="number" value="98" class="w-full px-4 py-3 text-center text-2xl font-mono bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Square 2</label>
+                                    <input id="rbc-s2" type="number" value="105" class="w-full px-4 py-3 text-center text-2xl font-mono bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Square 3</label>
+                                    <input id="rbc-s3" type="number" value="101" class="w-full px-4 py-3 text-center text-2xl font-mono bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Square 4</label>
+                                    <input id="rbc-s4" type="number" value="97" class="w-full px-4 py-3 text-center text-2xl font-mono bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-red-400">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Square 5</label>
+                                    <input id="rbc-s5" type="number" value="99" class="w-full px-4 py-3 text-center text-2xl font-mono bg-white border border-slate-200 rounded-2xl focus:outline-none focus:border-red-400">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8 bg-slate-50 rounded-2xl p-6">
+                            <div class="flex justify-between items-end">
+                                <div>
+                                    <div class="text-sm text-slate-500">Dilution Factor</div>
+                                    <select id="rbc-dilution" class="bg-white border border-slate-200 rounded-2xl px-4 py-3 mt-1 focus:outline-none">
+                                        <option value="200">1:200 (Standard)</option>
+                                        <option value="100">1:100</option>
+                                        <option value="50">1:50</option>
+                                    </select>
+                                </div>
+                                <button onclick="calculateRBCCount()" class="px-10 py-4 bg-red-600 hover:bg-red-700 transition-colors text-white font-semibold rounded-2xl flex items-center gap-3">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    CALCULATE RBC
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                            <div class="text-xs text-amber-700">
+                                <strong>Formula:</strong> RBC (×10⁶/µL) = (Total cells in 5 squares ÷ 5) × Dilution × (1 ÷ 0.004 µL) ÷ 1,000,000<br>
+                                <strong>Simplified:</strong> RBC = Average count per square × Dilution × 250 ÷ 1,000,000<br>
+                                <strong>Volume of 1 small square:</strong> 0.2mm × 0.2mm × 0.1mm = 0.004 mm³ = 0.004 µL
+                            </div>
+                        </div>
+                        
+                        <div id="rbc-result" class="hidden mt-8 p-6 bg-white border border-red-100 rounded-3xl">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-xs uppercase tracking-widest text-red-500">Result</div>
+                                    <div id="rbc-final" class="text-5xl font-semibold text-red-700">5.00</div>
+                                    <div class="text-sm text-slate-500">×10⁶ cells/µL</div>
+                                </div>
+                                <div id="rbc-interpret" class="text-right"></div>
+                            </div>
+                            <div class="mt-4 text-xs text-slate-500" id="rbc-calculation-detail"></div>
+                            <div class="mt-6 pt-4 border-t border-slate-100 flex gap-3">
+                                <button onclick="saveCurrentRecord()" class="px-6 py-3 bg-red-600 text-white rounded-2xl text-sm font-medium hover:bg-red-700 transition-colors">
+                                    <i class="fa-solid fa-save mr-2"></i> Save Record
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- WBC Count -->
+            <div id="content-wbc" class="p-8 hidden">
+                <div class="max-w-3xl mx-auto">
+                    <div class="bg-white rounded-3xl shadow-sm p-8">
+                        <h3 class="text-xl font-semibold mb-6">White Blood Cell Count</h3>
+                        
+                        <div class="grid grid-cols-2 gap-8">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600 mb-2">Patient ID / Name</label>
+                                <input id="wbc-patient" type="text" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400" placeholder="e.g., PT-20260714-001">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-600 mb-2">Experiment Date</label>
+                                <input id="wbc-date" type="date" class="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-blue-400">
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8">
+                            <label class="block text-sm font-medium text-slate-600 mb-2">Hemocytometer Counts (4 Large Corner Squares)</label>
+                            <p class="text-xs text-slate-400 mb-4">Count WBCs in all 4 large corner squares (each 1mm × 1mm × 0.1mm = 0.1 µL) of the Neubauer chamber.</p>
+                            <div class="count-grid">
+                                <div>
+                                    <label class="text-xs text-slate-500 block mb-1">Corner 1</label>
+                                    <input id="wbc-s1"

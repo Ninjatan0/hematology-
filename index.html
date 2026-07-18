@@ -611,4 +611,346 @@
                                     <div class="grid grid-cols-2 gap-4 text-center">
                                         <div>
                                             <div class="text-xs text-red-500 uppercase tracking-wider">RBC</div>
-                                            <div id="combined-rbc-display" class="text-3xl font-semibold text-red-700 mt-1"><
+                                            <div id="combined-rbc-display" class="text-3xl font-semibold text-red-700 mt-1"></div>
+                                            <div class="text-xs text-slate-500">×10⁶/µL</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-blue-500 uppercase tracking-wider">WBC</div>
+                                            <div id="combined-wbc-display" class="text-3xl font-semibold text-blue-700 mt-1"></div>
+                                            <div class="text-xs text-slate-500">×10³/µL</div>
+                                        </div>
+                                    </div>
+                                    <div id="combined-interpret" class="mt-4 pt-4 border-t border-purple-200 text-center text-sm"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <canvas id="combined-chart" class="w-full" height="300"></canvas>
+                        </div>
+                    </div>
+                    <button onclick="saveCombined()" class="mt-8 w-full py-5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-2xl hover:brightness-110 transition-all">Save Combined Experiment</button>
+                </div>
+            </div>
+            
+            <!-- Records -->
+            <div id="content-records" class="p-8 hidden">
+                <div class="bg-white rounded-3xl">
+                    <div class="px-8 py-6 border-b flex items-center justify-between">
+                        <h3 class="font-semibold">All Saved Records</h3>
+                        <input id="search-input" type="text" placeholder="Search records..." class="px-5 py-3 border border-slate-200 rounded-2xl text-sm focus:outline-none" onkeyup="filterRecords()">
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full" id="records-table">
+                            <thead>
+                                <tr class="border-b bg-slate-50">
+                                    <th class="text-left">Date</th>
+                                    <th class="text-left">Patient</th>
+                                    <th class="text-left">Type</th>
+                                    <th class="text-right">RBC (×10⁶/µL)</th>
+                                    <th class="text-right">WBC (×10³/µL)</th>
+                                    <th class="w-28"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="records-body" class="text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reports -->
+            <div id="content-reports" class="p-8 hidden">
+                <div class="max-w-2xl mx-auto bg-white rounded-3xl p-10" id="report-preview">
+                    <div class="text-center border-b pb-8">
+                        <h1 class="text-3xl font-semibold">Hematology Laboratory Report</h1>
+                        <p class="text-slate-500 mt-1" id="report-date"></p>
+                    </div>
+                    
+                    <div class="py-8 space-y-8" id="report-content">
+                        <div class="text-center text-slate-400 py-12">
+                            <i class="fa-solid fa-file-medical text-4xl mb-4 block"></i>
+                            <p>No record selected. Calculate an RBC or WBC count, save it, then view the record to generate a report.</p>
+                            <button onclick="navigateTo('rbc')" class="mt-4 px-6 py-3 bg-blue-600 text-white rounded-2xl font-medium hover:bg-blue-700 transition-colors">
+                                Start with RBC Count
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 pt-8 border-t">
+                        <button onclick="window.print()" class="flex-1 py-4 border border-slate-300 hover:bg-slate-50 rounded-2xl font-medium">🖨️ Print Report</button>
+                        <button onclick="exportToPDF()" class="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-medium">📄 Download PDF</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 bg-slate-800 text-white px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-3">
+        <span id="toast-text"></span>
+    </div>
+    
+    <script>
+        // ============================================================
+        // STATE
+        // ============================================================
+        let currentRecord = null;
+        let allRecords = [];
+        let combinedChart = null;
+        
+        // Manual counter state
+        let manualRBCCount = 0;
+        let wbcDiffCounts = {
+            neutrophil: 0,
+            lymphocyte: 0,
+            monocyte: 0,
+            eosinophil: 0,
+            basophil: 0
+        };
+        
+        // ============================================================
+        // TOAST NOTIFICATION
+        // ============================================================
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2800);
+        }
+        
+        // ============================================================
+        // NAVIGATION
+        // ============================================================
+        function navigateTo(section) {
+            document.querySelectorAll('[id^="content-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`content-${section}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active', 'bg-blue-50', 'text-blue-700'));
+            const activeLink = document.getElementById(`nav-${section}`);
+            if (activeLink) activeLink.classList.add('active', 'bg-blue-50', 'text-blue-700');
+            
+            document.getElementById('page-title').textContent = {
+                'dashboard': 'Dashboard',
+                'rbc': 'RBC Count',
+                'wbc': 'WBC Count',
+                'manual': 'Manual Counter',
+                'combined': 'Combined Analysis',
+                'records': 'Experiment Records',
+                'reports': 'Laboratory Report'
+            }[section];
+            
+            if (section === 'records') loadRecordsTable();
+            if (section === 'dashboard') refreshDashboard();
+        }
+        
+        // ============================================================
+        // DATE DISPLAY
+        // ============================================================
+        function updateDate() {
+            const dateEl = document.getElementById('current-date');
+            const now = new Date();
+            dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        }
+        
+        // ============================================================
+        // RBC CALCULATION (CORRECTED)
+        // Formula: RBC (cells/µL) = (Average count per small square) × Dilution Factor × (1/Volume of 1 small square)
+        // Volume of 1 small square = 0.2mm × 0.2mm × 0.1mm = 0.004 mm³ = 0.004 µL
+        // So: RBC/µL = avg × DF × 250
+        // To express as ×10⁶/µL: RBC = avg × DF × 250 / 1,000,000
+        // ============================================================
+        function calculateRBCCount() {
+            const s1 = parseFloat(document.getElementById('rbc-s1').value) || 0;
+            const s2 = parseFloat(document.getElementById('rbc-s2').value) || 0;
+            const s3 = parseFloat(document.getElementById('rbc-s3').value) || 0;
+            const s4 = parseFloat(document.getElementById('rbc-s4').value) || 0;
+            const s5 = parseFloat(document.getElementById('rbc-s5').value) || 0;
+            
+            const total = s1 + s2 + s3 + s4 + s5;
+            const avg = total / 5;
+            const dilution = parseFloat(document.getElementById('rbc-dilution').value);
+            
+            // Correct formula: avg × dilution × 250 / 1,000,000 (result in ×10⁶/µL)
+            // 250 = 1/0.004 (reciprocal of volume of one small square in µL)
+            const rbcPerUL = avg * dilution * 250;
+            const rbc = rbcPerUL / 1000000; // Convert to ×10⁶/µL
+            
+            document.getElementById('rbc-final').textContent = rbc.toFixed(2);
+            document.getElementById('rbc-result').classList.remove('hidden');
+            
+            // Show calculation detail
+            document.getElementById('rbc-calculation-detail').innerHTML = 
+                `Calculation: (${avg.toFixed(1)} avg) × ${dilution} (dilution) × 250 (1/vol) = ${rbcPerUL.toLocaleString()} cells/µL = ${rbc.toFixed(2)} ×10⁶/µL`;
+            
+            let interpret = '';
+            if (rbc < 4.0) interpret = '<span class="text-orange-600 font-medium">Low (Anemia possible)</span>';
+            else if (rbc > 6.0) interpret = '<span class="text-red-600 font-medium">High (Polycythemia)</span>';
+            else interpret = '<span class="text-emerald-600 font-medium">Within normal range</span>';
+            
+            document.getElementById('rbc-interpret').innerHTML = interpret;
+            
+            currentRecord = {
+                id: 'REC-' + Date.now().toString(36),
+                date: document.getElementById('rbc-date').value || new Date().toISOString().split('T')[0],
+                patient: document.getElementById('rbc-patient').value || 'Unnamed Patient',
+                type: 'RBC',
+                rbc: parseFloat(rbc.toFixed(2)),
+                wbc: null
+            };
+            
+            showToast('RBC count calculated successfully');
+        }
+        
+        // ============================================================
+        // WBC CALCULATION (CORRECTED)
+        // Formula: WBC (cells/µL) = (Average count per large square) × Dilution Factor × 10
+        // Volume of 1 large corner square = 1mm × 1mm × 0.1mm = 0.1 µL
+        // Correction factor = 1/0.1 = 10
+        // So: WBC/µL = avg × DF × 10
+        // To express as ×10³/µL: WBC = avg × DF × 10 / 1000 = avg × DF / 100
+        // ============================================================
+        function calculateWBCCount() {
+            const s1 = parseFloat(document.getElementById('wbc-s1').value) || 0;
+            const s2 = parseFloat(document.getElementById('wbc-s2').value) || 0;
+            const s3 = parseFloat(document.getElementById('wbc-s3').value) || 0;
+            const s4 = parseFloat(document.getElementById('wbc-s4').value) || 0;
+            
+            const total = s1 + s2 + s3 + s4;
+            const avg = total / 4;
+            const dilution = parseFloat(document.getElementById('wbc-dilution').value);
+            
+            // Correct formula: avg × dilution × 10 / 1000 (result in ×10³/µL)
+            const wbcPerUL = avg * dilution * 10;
+            const wbc = wbcPerUL / 1000; // Convert to ×10³/µL
+            
+            document.getElementById('wbc-final').textContent = wbc.toFixed(2);
+            document.getElementById('wbc-result').classList.remove('hidden');
+            
+            // Show calculation detail
+            document.getElementById('wbc-calculation-detail').innerHTML = 
+                `Calculation: (${avg.toFixed(1)} avg) × ${dilution} (dilution) × 10 (1/vol) = ${wbcPerUL.toLocaleString()} cells/µL = ${wbc.toFixed(2)} ×10³/µL`;
+            
+            let interpret = '';
+            if (wbc < 4.0) interpret = '<span class="text-orange-600 font-medium">Leukopenia</span>';
+            else if (wbc > 11.0) interpret = '<span class="text-red-600 font-medium">Leukocytosis</span>';
+            else interpret = '<span class="text-emerald-600 font-medium">Normal</span>';
+            
+            document.getElementById('wbc-interpret').innerHTML = interpret;
+            
+            currentRecord = {
+                id: 'REC-' + Date.now().toString(36),
+                date: document.getElementById('wbc-date').value || new Date().toISOString().split('T')[0],
+                patient: document.getElementById('wbc-patient').value || 'Unnamed Patient',
+                type: 'WBC',
+                rbc: null,
+                wbc: parseFloat(wbc.toFixed(2))
+            };
+            
+            showToast('WBC count calculated successfully');
+        }
+        
+        // ============================================================
+        // MANUAL RBC COUNTER
+        // ============================================================
+        function incrementRBC() {
+            manualRBCCount++;
+            updateManualRBCDisplay();
+        }
+        
+        function decrementRBC() {
+            if (manualRBCCount > 0) {
+                manualRBCCount--;
+                updateManualRBCDisplay();
+            }
+        }
+        
+        function resetRBCCounter() {
+            manualRBCCount = 0;
+            updateManualRBCDisplay();
+            showToast('RBC counter reset');
+        }
+        
+        function updateManualRBCDisplay() {
+            document.getElementById('manual-rbc-count').textContent = manualRBCCount;
+            
+            // Calculate estimated RBC based on count, squares, and dilution
+            const squares = parseInt(document.getElementById('manual-rbc-squares').value) || 5;
+            const dilution = parseInt(document.getElementById('manual-rbc-dilution').value) || 200;
+            
+            // avg per square = total / squares
+            // RBC/µL = (total/squares) × dilution × 250
+            // ×10⁶/µL = RBC/µL / 1,000,000
+            const avgPerSquare = manualRBCCount / squares;
+            const rbcPerUL = avgPerSquare * dilution * 250;
+            const rbcMillions = rbcPerUL / 1000000;
+            
+            document.getElementById('manual-rbc-estimate').textContent = rbcMillions.toFixed(2) + ' ×10⁶/µL';
+        }
+        
+        // ============================================================
+        // MANUAL WBC DIFFERENTIAL COUNTER
+        // ============================================================
+        function incrementWBCType(type) {
+            wbcDiffCounts[type]++;
+            updateWBCDiffDisplay();
+        }
+        
+        function decrementWBCType(type) {
+            if (wbcDiffCounts[type] > 0) {
+                wbcDiffCounts[type]--;
+                updateWBCDiffDisplay();
+            }
+        }
+        
+        function resetWBCDiff() {
+            wbcDiffCounts = { neutrophil: 0, lymphocyte: 0, monocyte: 0, eosinophil: 0, basophil: 0 };
+            updateWBCDiffDisplay();
+            showToast('WBC differential counter reset');
+        }
+        
+        function updateWBCDiffDisplay() {
+            const total = Object.values(wbcDiffCounts).reduce((sum, v) => sum + v, 0);
+            document.getElementById('wbc-diff-total').textContent = total;
+            
+            // Update progress bar (goal: 100 cells)
+            const progress = Math.min((total / 100) * 100, 100);
+            document.getElementById('wbc-diff-progress').style.width = progress + '%';
+            
+            // Update each type
+            const types = ['neutrophil', 'lymphocyte', 'monocyte', 'eosinophil', 'basophil'];
+            types.forEach(type => {
+                const count = wbcDiffCounts[type];
+                const pct = total > 0 ? (count / total * 100) : 0;
+                
+                document.getElementById(`count-${type}`).textContent = count;
+                document.getElementById(`pct-${type}`).textContent = pct.toFixed(1) + '%';
+                document.getElementById(`bar-${type}`).style.width = pct + '%';
+            });
+            
+            // Show interpretation when count >= 100
+            const interpDiv = document.getElementById('wbc-diff-interpretation');
+            if (total >= 100) {
+                interpDiv.classList.remove('hidden');
+                const notes = [];
+                const neutPct = (wbcDiffCounts.neutrophil / total) * 100;
+                const lymPct = (wbcDiffCounts.lymphocyte / total) * 100;
+                const monPct = (wbcDiffCounts.monocyte / total) * 100;
+                const eosPct = (wbcDiffCounts.eosinophil / total) * 100;
+                const basPct = (wbcDiffCounts.basophil / total) * 100;
+                
+                if (neutPct > 70) notes.push('<span class="text-red-600">• Neutrophilia (' + neutPct.toFixed(1) + '%) — may indicate bacterial infection, inflammation, or stress.</span>');
+                else if (neutPct < 40) notes.push('<span class="text-orange-600">• Neutropenia (' + neutPct.toFixed(1) + '%) — may indicate viral infection, drug reaction, or bone marrow disorder.</span>');
+                
+                if (lymPct > 40) notes.push('<span class="text-red-600">• Lymphocytosis (' + lymPct.toFixed(1) + '%) — may indicate viral infection, chronic lymphocytic leukemia.</span>');
+                else if (lymPct < 20) notes.push('<span class="text-orange-600">• Lymphopenia (' + lymPct.toFixed(1) + '%) — may indicate HIV, steroid use, or autoimmune disease.</span>');
+                
+                if (monPct > 8) notes.push('<span class="text-red-600">• Monocytosis (' + monPct.toFixed(1) + '%) — may indicate chronic infection, autoimmune disease.</span>');
+                
+                if (eosPct > 4) notes.push('<span class="text-red-600">• Eosinophilia (' + eosPct.toFixed(1) + '%) — may indicate allergic reaction, parasitic infection.</span>');
+                
+                if (basPct > 1) notes.push('<span class="text-red-600">• Basophilia (' + basPct.toFixed(1) + '%) — may indicate myeloproliferative disorder, allergic reaction.</span>');
+                
+                if (notes.length === 0) notes.push('<span class="text-emerald-600">• All differential values within normal reference ranges.</span>');
+                
+                documen

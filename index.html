@@ -1359,4 +1359,27 @@
             saveToLocalStorage();
             refreshDashboard();
             loadRecordsTable();
-            showToast('All 
+            showToast('All data cleared');
+        }
+        
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDate();
+            loadFromLocalStorage();
+            refreshDashboard();
+            
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            const rbcDateEl = document.getElementById('rbc-date');
+            const wbcDateEl = document.getElementById('wbc-date');
+            if (rbcDateEl) rbcDateEl.value = today;
+            if (wbcDateEl) wbcDateEl.value = today;
+            
+            // Show dashboard by default
+            navigateTo('dashboard');
+        });
+    </script>
+</body>
+</html>
